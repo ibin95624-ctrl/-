@@ -174,24 +174,24 @@
                         <h2 class="text-base font-bold text-zinc-100 flex items-center gap-2">
                             <i class="fa-solid fa-clock text-zinc-400"></i> 타임 트래커 (오전 4시 시작 시간표)
                         </h2>
-                        <p class="text-xs text-zinc-400 mt-0.5">활동을 입력하면 좌측 시간표에 자동으로 해당 시간 칸만큼 색상이 칠해집니다.</p>
+                        <p class="text-xs text-zinc-400 mt-0.5">활동을 입력하면 좌측 시간표에 1분 단위로 해당 시간이 정확히 표시됩니다.</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                    <!-- Left: Grid Table (Starts at 04:00, 25 rows x 6 columns) -->
+                    <!-- Left: Grid Table (Starts at 04:00, 25 rows x 60 one-minute columns) -->
                     <div class="xl:col-span-7 border border-zinc-700 bg-zinc-900/50 p-3">
                         <div>
                             <!-- Timetable Header -->
-                            <div class="grid grid-cols-7 text-center text-[11px] font-bold text-zinc-400 border-b border-zinc-700 pb-2 mb-2">
-                                <div class="col-span-1">시간</div>
-                                <div class="col-span-6 grid grid-cols-6 gap-1">
+                            <div class="grid grid-cols-[52px_1fr] items-center text-center text-[10px] font-bold text-zinc-400 border-b border-zinc-700 pb-2 mb-2 gap-1">
+                                <div>시간</div>
+                                <div class="grid grid-cols-6">
                                     <span>00</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span>
                                 </div>
                             </div>
 
                             <!-- Rows starting from 04:00 -->
-                            <div id="timetableRows" class="space-y-1">
+                            <div id="timetableRows" class="space-y-0">
                                 <!-- Rendered dynamically -->
                             </div>
                         </div>
@@ -871,14 +871,17 @@
                 else if (act.type === 'meal') colorClass = 'bg-amber-700';
                 else if (act.type === 'other') colorClass = 'bg-purple-700';
 
-                for (let m = startMins; m < endMins; m += 10) {
-                    let adjustedMins = m - 4 * 60;
+                for (let m = startMins; m < endMins; m += 1) {
+                    let normalizedMins = m % (24 * 60);
+                    if (normalizedMins < 0) normalizedMins += 24 * 60;
+
+                    let adjustedMins = normalizedMins - 4 * 60;
                     if (adjustedMins < 0) adjustedMins += 24 * 60;
 
                     const h = Math.floor(adjustedMins / 60);
-                    const slotIdx = Math.floor((adjustedMins % 60) / 10);
+                    const slotIdx = adjustedMins % 60;
 
-                    if (h >= 0 && h < 25) {
+                    if (h >= 0 && h < 24) {
                         slotMap[`${h}_${slotIdx}`] = colorClass;
                     }
                 }
@@ -900,25 +903,35 @@
             document.getElementById('restTimeTotal').textContent = formatMinsToHours(totals.rest);
             document.getElementById('mealTimeTotal').textContent = formatMinsToHours(totals.meal);
 
-            for (let i = 0; i < 25; i++) {
+            for (let i = 0; i < 24; i++) {
                 const actualHour = (i + 4) % 24;
                 const row = document.createElement('div');
-                row.className = 'grid grid-cols-7 items-center text-center gap-1 mb-1';
+                row.className = 'grid grid-cols-[52px_1fr] items-center text-center gap-0 mb-0';
 
                 const hourLabel = document.createElement('div');
-                hourLabel.className = 'col-span-1 text-[11px] font-bold text-zinc-300 bg-zinc-800 border border-zinc-700 py-1';
+                hourLabel.className = 'text-[11px] font-bold text-zinc-300 bg-zinc-800 border border-zinc-700 py-1';
                 hourLabel.textContent = `${String(actualHour).padStart(2, '0')}:00`;
                 row.appendChild(hourLabel);
 
                 const slotsGroup = document.createElement('div');
-                slotsGroup.className = 'col-span-6 grid grid-cols-6 gap-1';
+                slotsGroup.className = 'grid grid-cols-6 gap-0';
 
-                for (let slot = 0; slot < 6; slot++) {
-                    const cellKey = `${i}_${slot}`;
-                    const bgClass = slotMap[cellKey] || 'bg-zinc-800/40';
-
+                // 화면에는 10분 단위 6칸만 보이지만, 각 칸 내부는 1분 단위 데이터를 유지한다.
+                for (let block = 0; block < 6; block++) {
                     const cell = document.createElement('div');
-                    cell.className = `h-6 border border-zinc-700/80 transition-colors ${bgClass}`;
+                    cell.className = 'h-6 min-w-0 border border-zinc-700/80 overflow-hidden grid grid-cols-10';
+                    cell.title = `${String(actualHour).padStart(2, '0')}:${String(block * 10).padStart(2, '0')}~${String(actualHour).padStart(2, '0')}:${String(block * 10 + 9).padStart(2, '0')}`;
+
+                    for (let minuteOffset = 0; minuteOffset < 10; minuteOffset++) {
+                        const minute = block * 10 + minuteOffset;
+                        const cellKey = `${i}_${minute}`;
+                        const bgClass = slotMap[cellKey] || 'bg-zinc-800/40';
+
+                        const minuteFill = document.createElement('div');
+                        minuteFill.className = `h-full min-w-0 ${bgClass}`;
+                        cell.appendChild(minuteFill);
+                    }
+
                     slotsGroup.appendChild(cell);
                 }
 
